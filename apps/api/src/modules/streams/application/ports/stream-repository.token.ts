@@ -1,0 +1,2 @@
+
+export const STREAM_REPOSITORY = Symbol('STREAM_REPOSITORY');

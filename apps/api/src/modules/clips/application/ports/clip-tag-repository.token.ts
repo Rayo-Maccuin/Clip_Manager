@@ -1,0 +1,2 @@
+export const CLIP_TAG_REPOSITORY = Symbol('CLIP_TAG_REPOSITORY');
+

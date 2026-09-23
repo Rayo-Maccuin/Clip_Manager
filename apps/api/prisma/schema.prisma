@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ClipStatus {
+  PENDING
+  IN_REVIEW
+  SELECTED
+  EDITED
+  PUBLISHED
+  DISCARDED
+}
+
+model Stream {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String
+  vodUrl    String
+  startedAt DateTime
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  clips Clip[]
+
+  @@index([startedAt])
+}
+
+model Clip {
+  id          String     @id @default(uuid()) @db.Uuid
+  streamId    String     @db.Uuid
+  title       String
+  description String?
+  timestamp   Int
+  duration    Int
+  status      ClipStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  stream Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  tags   ClipTag[]
+
+  @@index([streamId])
+  @@index([status])
+  @@index([streamId, timestamp])
+}
+
+model Tag {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  clips ClipTag[]
+}
+
+model ClipTag {
+  clipId String @db.Uuid
+  tagId  String @db.Uuid
+
+  clip Clip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([clipId, tagId])
+  @@index([tagId])
+}
+
