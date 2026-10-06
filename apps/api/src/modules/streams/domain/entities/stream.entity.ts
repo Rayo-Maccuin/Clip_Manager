@@ -65,6 +65,16 @@ export class Stream {
     this.props.endedAt = new Date(endedAt);
   }
 
+  updateVodUrl(vodUrl: string): void {
+    const cleanUrl = vodUrl.trim();
+
+    if (!cleanUrl) {
+      throw new Error('Stream VOD URL is required');
+    }
+
+    this.props.vodUrl = cleanUrl;
+  }
+
   get id(): string {
     return this.props.id;
   }

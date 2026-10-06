@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/persistence/prisma/prisma.module.js';
 import { STREAM_REPOSITORY } from './application/ports/stream-repository.token.js';
 import { CreateStreamUseCase } from './application/use-cases/create-stream.use-case.js';
+import { DeleteStreamUseCase } from './application/use-cases/delete-stream.use-case.js';
 import { EndStreamUseCase } from './application/use-cases/end-stream.use-case.js';
 import { GetStreamUseCase } from './application/use-cases/get-stream.use-case.js';
 import { ListStreamsUseCase } from './application/use-cases/list-streams.use-case.js';
+import { UpdateStreamVodUseCase } from './application/use-cases/update-stream-vod.use-case.js';
 import { PrismaStreamRepository } from './infrastructure/repositories/prisma-stream.repository.js';
 import { StreamsController } from './presentation/controllers/streams.controller.js';
 
@@ -20,12 +22,15 @@ import { StreamsController } from './presentation/controllers/streams.controller
     EndStreamUseCase,
     GetStreamUseCase,
     ListStreamsUseCase,
+    DeleteStreamUseCase,
+    UpdateStreamVodUseCase,
   ],
   exports: [
     CreateStreamUseCase,
     EndStreamUseCase,
     GetStreamUseCase,
     ListStreamsUseCase,
+    DeleteStreamUseCase,
   ],
 })
 export class StreamsModule {}

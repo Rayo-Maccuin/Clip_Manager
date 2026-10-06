@@ -42,6 +42,28 @@ export class PrismaClipRepository implements ClipRepository {
     });
   }
 
+  async findAll(): Promise<Clip[]> {
+    const clips = await this.prisma.clip.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return clips.map((clip) =>
+      Clip.rehydrate({
+        id: clip.id,
+        streamId: clip.streamId,
+        title: clip.title,
+        description: clip.description,
+        timestamp: clip.timestamp,
+        duration: clip.duration,
+        status: clip.status as ClipStatus,
+        createdAt: clip.createdAt,
+        updatedAt: clip.updatedAt,
+      }),
+    );
+  }
+
   async findAllByStreamId(streamId: string): Promise<Clip[]> {
     const clips = await this.prisma.clip.findMany({
       where: {
@@ -88,6 +110,14 @@ export class PrismaClipRepository implements ClipRepository {
       status: clip.status as ClipStatus,
       createdAt: clip.createdAt,
       updatedAt: clip.updatedAt,
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.clip.delete({
+      where: {
+        id,
+      },
     });
   }
 }

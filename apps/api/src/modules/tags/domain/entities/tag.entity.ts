@@ -6,6 +6,7 @@ export interface TagProps {
   id: string;
   name: string;
   createdAt: Date;
+  usageCount?: number;
 }
 
 export class Tag {
@@ -30,6 +31,7 @@ export class Tag {
       id: props.id,
       name: props.name,
       createdAt: new Date(props.createdAt),
+      usageCount: props.usageCount,
     });
   }
 
@@ -43,6 +45,10 @@ export class Tag {
 
   get createdAt(): Date {
     return new Date(this.props.createdAt);
+  }
+
+  get usageCount(): number {
+    return this.props.usageCount ?? 0;
   }
 }
 

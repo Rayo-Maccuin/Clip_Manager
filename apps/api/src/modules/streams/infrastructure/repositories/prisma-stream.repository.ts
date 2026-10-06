@@ -73,4 +73,12 @@ export class PrismaStreamRepository implements StreamRepository {
       createdAt: stream.createdAt,
     });
   }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.stream.delete({
+      where: {
+        id,
+      },
+    });
+  }
 }

@@ -1,4 +1,4 @@
-import { IsDateString, IsNotEmpty, IsString, IsUrl } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class CreateStreamDto {
   @IsString()
@@ -7,9 +7,10 @@ export class CreateStreamDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsUrl()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   vodUrl!: string;
 
+  @IsOptional()
   @IsDateString()
-  startedAt!: string;
+  startedAt?: string;
 }

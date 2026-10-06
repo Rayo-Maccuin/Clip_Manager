@@ -1,37 +1,44 @@
 import {
-Body,
-Controller,
-Delete,
-Get,
-NotFoundException,
-Param,
-ParseUUIDPipe,
-Patch,
-Post,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
 } from '@nestjs/common';
 import { AddTagToClipUseCase } from '../../application/use-cases/add-tag-to-clip.use-case.js';
 import { CreateClipUseCase } from '../../application/use-cases/create-clip.use-case.js';
+import { DeleteClipUseCase } from '../../application/use-cases/delete-clip.use-case.js';
 import { GetClipSuggestionsUseCase } from '../../application/use-cases/get-clip-suggestions.use-case.js';
 import { GetClipTagsUseCase } from '../../application/use-cases/get-clip-tags.use-case.js';
 import { GetClipUseCase } from '../../application/use-cases/get-clip.use-case.js';
+import { ListClipsUseCase } from '../../application/use-cases/list-clips.use-case.js';
 import { ListClipsByStreamUseCase } from '../../application/use-cases/list-clips-by-stream.use-case.js';
 import { RemoveTagFromClipUseCase } from '../../application/use-cases/remove-tag-from-clip.use-case.js';
 import { UpdateClipStatusUseCase } from '../../application/use-cases/update-clip-status.use-case.js';
+import { UpdateClipUseCase } from '../../application/use-cases/update-clip.use-case.js';
 import { CreateClipDto } from '../dto/create-clip.dto.js';
+import { UpdateClipDto } from '../dto/update-clip.dto.js';
 import { UpdateClipStatusDto } from '../dto/update-clip-status.dto.js';
 
 @Controller()
 export class ClipsController {
-constructor(
-private readonly createClipUseCase: CreateClipUseCase,
-private readonly getClipUseCase: GetClipUseCase,
-private readonly listClipsByStreamUseCase: ListClipsByStreamUseCase,
-private readonly updateClipStatusUseCase: UpdateClipStatusUseCase,
-private readonly addTagToClipUseCase: AddTagToClipUseCase,
-private readonly removeTagFromClipUseCase: RemoveTagFromClipUseCase,
-private readonly getClipSuggestionsUseCase: GetClipSuggestionsUseCase,
-private readonly getClipTagsUseCase: GetClipTagsUseCase,
-) {}
+  constructor(
+    private readonly createClipUseCase: CreateClipUseCase,
+    private readonly getClipUseCase: GetClipUseCase,
+    private readonly listClipsUseCase: ListClipsUseCase,
+    private readonly listClipsByStreamUseCase: ListClipsByStreamUseCase,
+    private readonly updateClipStatusUseCase: UpdateClipStatusUseCase,
+    private readonly updateClipUseCase: UpdateClipUseCase,
+    private readonly deleteClipUseCase: DeleteClipUseCase,
+    private readonly addTagToClipUseCase: AddTagToClipUseCase,
+    private readonly removeTagFromClipUseCase: RemoveTagFromClipUseCase,
+    private readonly getClipSuggestionsUseCase: GetClipSuggestionsUseCase,
+    private readonly getClipTagsUseCase: GetClipTagsUseCase,
+  ) {}
 
 @Post('streams/:streamId/clips')
 async create(
@@ -54,14 +61,36 @@ return this.toResponse(clip);
 
 }
 
+@Get('clips')
+async findAll() {
+  const clips = await this.listClipsUseCase.execute();
+
+  return Promise.all(
+    clips.map(async (clip) => {
+      const tags = await this.getClipTagsUseCase.execute(clip.id);
+      return {
+        ...this.toResponse(clip),
+        tags: tags.map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt })),
+      };
+    }),
+  );
+}
+
 @Get('streams/:streamId/clips')
 async findByStream(
-@Param('streamId', new ParseUUIDPipe()) streamId: string,
+  @Param('streamId', new ParseUUIDPipe()) streamId: string,
 ) {
-const clips = await this.listClipsByStreamUseCase.execute(streamId);
+  const clips = await this.listClipsByStreamUseCase.execute(streamId);
 
-return clips.map((clip) => this.toResponse(clip));
-
+  return Promise.all(
+    clips.map(async (clip) => {
+      const tags = await this.getClipTagsUseCase.execute(clip.id);
+      return {
+        ...this.toResponse(clip),
+        tags: tags.map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt })),
+      };
+    }),
+  );
 }
 
 @Get('clips/:id/suggestions')
@@ -95,14 +124,18 @@ return tags.map((tag) => ({
 
 @Get('clips/:id')
 async findById(@Param('id', new ParseUUIDPipe()) id: string) {
-const clip = await this.getClipUseCase.execute(id);
+  const clip = await this.getClipUseCase.execute(id);
 
-if (!clip) {
-  throw new NotFoundException('Clip not found');
-}
+  if (!clip) {
+    throw new NotFoundException('Clip not found');
+  }
 
-return this.toResponse(clip);
+  const tags = await this.getClipTagsUseCase.execute(id);
 
+  return {
+    ...this.toResponse(clip),
+    tags: tags.map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt })),
+  };
 }
 
 @Patch('clips/:id/status')
@@ -123,7 +156,38 @@ return this.toResponse(clip);
 
 }
 
-@Post('clips/:clipId/tags/:tagId')
+  @Patch('clips/:id')
+  async update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateClipDto,
+  ) {
+    const clip = await this.updateClipUseCase.execute({
+      id,
+      title: dto.title,
+      description: dto.description,
+      timestamp: dto.timestamp,
+      duration: dto.duration,
+    });
+
+    if (!clip) {
+      throw new NotFoundException('Clip not found');
+    }
+
+    return this.toResponse(clip);
+  }
+
+  @Delete('clips/:id')
+  async delete(@Param('id', new ParseUUIDPipe()) id: string) {
+    const deleted = await this.deleteClipUseCase.execute({ id });
+
+    if (!deleted) {
+      throw new NotFoundException('Clip not found');
+    }
+
+    return { message: 'Clip deleted' };
+  }
+
+  @Post('clips/:clipId/tags/:tagId')
 async addTag(
 @Param('clipId', new ParseUUIDPipe()) clipId: string,
 @Param('tagId', new ParseUUIDPipe()) tagId: string,

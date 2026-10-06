@@ -1,5 +1,3 @@
-import { InvalidClipStatusTransitionError } from '../errors/invalid-clip-status-transition.error.js';
-
 export enum ClipStatus {
   PENDING = 'PENDING',
   IN_REVIEW = 'IN_REVIEW',
@@ -83,35 +81,6 @@ export class Clip {
   }
 
   moveTo(status: ClipStatus): void {
-    if (status === this.props.status) {
-      return;
-    }
-
-    const allowedTransitions: Record<ClipStatus, ClipStatus[]> = {
-      [ClipStatus.PENDING]: [ClipStatus.IN_REVIEW],
-      [ClipStatus.IN_REVIEW]: [
-        ClipStatus.SELECTED,
-        ClipStatus.DISCARDED,
-      ],
-      [ClipStatus.SELECTED]: [
-        ClipStatus.EDITED,
-        ClipStatus.DISCARDED,
-      ],
-      [ClipStatus.EDITED]: [
-        ClipStatus.PUBLISHED,
-        ClipStatus.DISCARDED,
-      ],
-      [ClipStatus.PUBLISHED]: [],
-      [ClipStatus.DISCARDED]: [],
-    };
-
-    if (!allowedTransitions[this.props.status].includes(status)) {
-      throw new InvalidClipStatusTransitionError(
-        this.props.status,
-        status,
-      );
-    }
-
     this.props.status = status;
     this.props.updatedAt = new Date();
   }
@@ -150,6 +119,40 @@ export class Clip {
 
   get updatedAt(): Date {
     return new Date(this.props.updatedAt);
+  }
+
+  updateTitle(title: string): void {
+    const trimmed = title.trim();
+
+    if (!trimmed) {
+      throw new Error('Clip title is required');
+    }
+
+    this.props.title = trimmed;
+    this.props.updatedAt = new Date();
+  }
+
+  updateDescription(description: string | null): void {
+    this.props.description = description?.trim() || null;
+    this.props.updatedAt = new Date();
+  }
+
+  updateTimestamp(timestamp: number): void {
+    if (!Number.isInteger(timestamp) || timestamp < 0) {
+      throw new Error('Clip timestamp must be a non-negative integer');
+    }
+
+    this.props.timestamp = timestamp;
+    this.props.updatedAt = new Date();
+  }
+
+  updateDuration(duration: number): void {
+    if (!Number.isInteger(duration) || duration <= 0) {
+      throw new Error('Clip duration must be a positive integer');
+    }
+
+    this.props.duration = duration;
+    this.props.updatedAt = new Date();
   }
 }
 

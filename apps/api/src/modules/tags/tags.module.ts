@@ -3,6 +3,7 @@ import { PrismaModule } from '../../infrastructure/persistence/prisma/prisma.mod
 import { TAG_REPOSITORY } from './application/ports/tag-repository.token.js';
 import { CreateTagUseCase } from './application/use-cases/create-tag.use-case.js';
 import { ListTagsUseCase } from './application/use-cases/list-tags.use-case.js';
+import { DeleteTagUseCase } from './application/use-cases/delete-tag.use-case.js';
 import { PrismaTagRepository } from './infrastructure/repositories/prisma-tag.repository.js';
 import { TagsController } from './presentation/controllers/tags.controller.js';
 
@@ -16,10 +17,12 @@ import { TagsController } from './presentation/controllers/tags.controller.js';
     },
     CreateTagUseCase,
     ListTagsUseCase,
+    DeleteTagUseCase,
   ],
   exports: [
     CreateTagUseCase,
     ListTagsUseCase,
+    DeleteTagUseCase,
   ],
 })
 export class TagsModule {}

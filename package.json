@@ -1,16 +1,28 @@
 {
-  "name": "clip-manager",
-  "version": "0.1.0",
-  "private": true,
-  "packageManager": "pnpm@11.23.0",
-  "engines": {
-    "node": ">=24 <25",
-    "pnpm": ">=11.23.0 <12"
-  },
-  "scripts": {
-    "dev": "pnpm --parallel --filter './apps/*' dev",
-    "build": "pnpm --recursive build",
-    "typecheck": "pnpm --recursive typecheck",
-    "lint": "pnpm --recursive lint"
-  }
+"name": "clip-manager",
+"version": "0.1.0",
+"private": true,
+"packageManager": "pnpm@11.23.0",
+"engines": {
+"node": ">=24 <25",
+"pnpm": ">=11.23.0 <12"
+},
+"scripts": {
+  "build": "nest build",
+  "dev": "pnpm --parallel --filter web --filter api dev",
+  "deploy": "nest deploy",
+  "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+  "start": "nest start",
+  "start:dev": "nest start --watch",
+  "start:debug": "nest start --debug --watch",
+  "start:prod": "node dist/main",
+  "typecheck": "tsc --noEmit",
+  "lint": "oxlint --type-aware src/ test/",
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:cov": "vitest run --coverage",
+  "test:debug": "vitest --inspect-brk --no-file-parallelism",
+  "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+  "postinstall": "prisma skills sync || exit 0"
+}
 }

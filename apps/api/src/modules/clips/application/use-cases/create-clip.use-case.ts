@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { Clip } from '../../domain/entities/clip.entity.js';
 import type { CreateClipProps } from '../../domain/entities/clip.entity.js';
 import type { ClipRepository } from '../ports/clip.repository.js';
@@ -20,6 +20,12 @@ export class CreateClipUseCase {
 
     if (!stream) {
       return null;
+    }
+
+    const streamEnd = stream.endedAt ?? new Date();
+    const maxTimestamp = Math.max(0, Math.floor((streamEnd.getTime() - stream.startedAt.getTime()) / 1000));
+    if (input.timestamp > maxTimestamp) {
+      throw new BadRequestException('El timestamp no puede superar el tiempo transcurrido del stream');
     }
 
     const clip = Clip.create(input);

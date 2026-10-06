@@ -20,6 +20,11 @@ export class PrismaTagRepository implements TagRepository {
   async findAll(): Promise<Tag[]> {
     const tags = await this.prisma.tag.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { clips: true },
+        },
+      },
     });
 
     return tags.map((tag) =>
@@ -27,6 +32,7 @@ export class PrismaTagRepository implements TagRepository {
         id: tag.id,
         name: tag.name,
         createdAt: tag.createdAt,
+        usageCount: tag._count.clips,
       }),
     );
   }
@@ -62,5 +68,12 @@ export class PrismaTagRepository implements TagRepository {
       createdAt: tag.createdAt,
     });
   }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.tag.delete({
+      where: { id },
+    });
+  }
 }
+
 
