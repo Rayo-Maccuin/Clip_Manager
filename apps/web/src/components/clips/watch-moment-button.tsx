@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export function WatchMomentButton({
   clip,
   vodUrl,
-  compact = false,
+  compact: _compact = false,
   className = "",
 }: {
   clip: Pick<Clip, "timestamp" | "duration">;

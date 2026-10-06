@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   formatDate,
   formatElapsedDuration,
+  formatTimestamp,
 } from "@/lib/format";
 import type { Clip, Stream, Tag } from "@/lib/types";
 import { BackButton } from "@/components/navigation/back-button";
@@ -77,7 +78,7 @@ export default function StreamDetail({
     };
   }, [stream]);
 
-  // Capture moment
+  // Capture moment (opens the full modal)
   const triggerMark = useCallback(() => {
     if (!stream || stream.endedAt) return;
 
@@ -91,7 +92,43 @@ export default function StreamDetail({
     setTimeout(() => setFlash(false), 300);
   }, [stream]);
 
-  // Shortcut 'M'
+  // Quick mark: capture timestamp instantly without opening the modal
+  const quickMark = useCallback(async () => {
+    if (!stream || stream.endedAt) return;
+
+    const startedTime = new Date(stream.startedAt).getTime();
+    const timestamp = Math.max(0, Math.floor((Date.now() - startedTime) / 1000));
+
+    setFlash(true);
+    setTimeout(() => setFlash(false), 300);
+
+    try {
+      const response = await fetch(`${API_URL}/streams/${stream.id}/clips`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `Momento ${clips.length + 1}`,
+          description: "",
+          timestamp,
+          duration: 30,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No fue posible guardar el momento rápido.");
+      }
+
+      const newClip = (await response.json()) as Clip;
+      setClips((prev) => [newClip, ...prev]);
+      notifyToast(`Momento capturado: ${formatTimestamp(timestamp)}`);
+    } catch {
+      notifyToast("No fue posible guardar el momento rápido. Intenta de nuevo.", "error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream, clips.length, notifyToast]);
+
+  // Shortcut 'M': quick mark (no modal)
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target;
@@ -101,16 +138,16 @@ export default function StreamDetail({
       );
 
       if (!isEditing && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "m") {
-        if (isActive && !isMarking) {
+        if (isActive) {
           event.preventDefault();
-          triggerMark();
+          void quickMark();
         }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActive, isMarking, triggerMark]);
+  }, [isActive, quickMark]);
 
   async function handleEndStream() {
     setShowEndConfirm(true);
