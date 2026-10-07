@@ -7,7 +7,7 @@
 "license": "UNLICENSED",
 "type": "module",
 "scripts": {
-"build": "nest build",
+"build": "pnpm dlx prisma@7.10.0 generate --config prisma7.config.ts && nest build",
 "seed": "node dist/seed.js",
 "dev": "nest start --watch",
 "deploy": "nest deploy",
