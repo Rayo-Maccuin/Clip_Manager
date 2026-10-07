@@ -1,15 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ConfirmationModal } from "@/components/ui/confirmation-modal";
-import { DropdownSelect } from "@/components/ui/dropdown-select";
-import { Modal } from "@/components/ui/modal";
-import { PasswordInput } from "@/components/ui/password-input";
-import { ToneBadge } from "@/components/ui/status-badge";
-import { notifyToast } from "@/lib/toast";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002";
+import { FormEvent, useState } from "react";
 
 export type Usuario = {
   id: string;
@@ -20,652 +11,781 @@ export type Usuario = {
   createdAt: string;
 };
 
-const passwordRequirements = [
-  { label: 'Mínimo 8 caracteres', matches: (value: string) => value.length >= 8 },
-  { label: 'Una mayúscula', matches: (value: string) => /[A-Z]/.test(value) },
-  { label: 'Una minúscula', matches: (value: string) => /[a-z]/.test(value) },
-  { label: 'Un número', matches: (value: string) => /\d/.test(value) },
-  {
-    label: 'Un carácter especial',
-    matches: (value: string) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(value),
-  },
-];
-
-type UsuariosPageProps = {
-  initialUsuarios: Usuario[];
-  initialError: string | null;
+type UserFormData = {
+  name: string;
+  email: string;
+  password: string;
+  role: "ADMIN" | "MODERATOR";
+  status: "ACTIVE" | "INACTIVE";
 };
 
-export default function UsuariosPage({ initialUsuarios, initialError }: UsuariosPageProps) {
+type UserEditData = {
+  name: string;
+  email: string;
+  password: string;
+  role: "ADMIN" | "MODERATOR";
+  status: "ACTIVE" | "INACTIVE";
+};
+
+const INITIAL_FORM: UserFormData = {
+  name: "",
+  email: "",
+  password: "",
+  role: "MODERATOR",
+  status: "ACTIVE",
+};
+
+const PASSWORD_RULES = {
+  minLength: (value: string) => value.length >= 8,
+  uppercase: (value: string) => /[A-Z]/.test(value),
+  lowercase: (value: string) => /[a-z]/.test(value),
+  number: (value: string) => /\d/.test(value),
+  special: (value: string) => /[^A-Za-z0-9]/.test(value),
+};
+
+function isValidPassword(password: string) {
+  return Object.values(PASSWORD_RULES).every((rule) => rule(password));
+}
+
+function getErrorMessage(body: unknown, fallback: string) {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "message" in body
+  ) {
+    const message = (body as { message?: unknown }).message;
+
+    if (Array.isArray(message)) {
+      return message.join(", ");
+    }
+
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return fallback;
+}
+
+async function parseResponse(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+export default function UsuariosPage({
+  initialUsuarios,
+  initialError,
+}: {
+  initialUsuarios: Usuario[];
+  initialError: string | null;
+}) {
   const [usuarios, setUsuarios] = useState<Usuario[]>(initialUsuarios);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(initialError);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
 
-  const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [newRole, setNewRole] = useState<"ADMIN" | "MODERATOR">("MODERATOR");
-  const [newStatus, setNewStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [deactivatingUser, setDeactivatingUser] = useState<Usuario | null>(
+    null,
+  );
 
-  const [userBeingEdited, setUserBeingEdited] = useState<Usuario | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editRole, setEditRole] = useState<"ADMIN" | "MODERATOR">("MODERATOR");
-  const [editStatus, setEditStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
-  const [editPassword, setEditPassword] = useState("");
-  const [editPasswordConfirmation, setEditPasswordConfirmation] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [form, setForm] = useState<UserFormData>(INITIAL_FORM);
+  const [editForm, setEditForm] = useState<UserEditData>({
+    name: "",
+    email: "",
+    password: "",
+    role: "MODERATOR",
+    status: "ACTIVE",
+  });
 
-  const [userToDeactivate, setUserToDeactivate] = useState<Usuario | null>(null);
-  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const mainAdminEmail = "angelmp2097@gmail.com";
 
   async function handleRetry() {
-    setIsRetrying(true);
-    try {
-      const response = await fetch(`${API_URL}/usuarios`, {
-        credentials: "include",
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) throw new Error();
-      setUsuarios((await response.json()) as Usuario[]);
-      setError(null);
-    } catch {
-      setError("No fue posible cargar los usuarios. Intenta nuevamente.");
-    } finally {
-      setIsRetrying(false);
-    }
-  }
-
-  function resetCreateForm() {
-    setNewName("");
-    setNewEmail("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setNewRole("MODERATOR");
-    setNewStatus("ACTIVE");
-    setCreateError(null);
-  }
-
-  function openCreateModal() {
-    setUserBeingEdited(null);
-    setShowCreateModal(true);
-  }
-
-  function closeCreateModal() {
-    setShowCreateModal(false);
-    resetCreateForm();
-  }
-
-  async function handleCreate(event: React.FormEvent) {
-    event.preventDefault();
-    if (isCreating) return;
-
-    const cleanName = newName.trim();
-    const cleanEmail = newEmail.trim().toLowerCase();
-
-    if (!cleanName || !cleanEmail || !newPassword) {
-      setCreateError("Completa todos los campos.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setCreateError("Las contraseñas no coinciden.");
-      return;
-    }
-
-    if (passwordRequirements.some((requirement) => !requirement.matches(newPassword))) {
-      setCreateError("La contraseña todavía no cumple todos los requisitos.");
-      return;
-    }
-
-    setIsCreating(true);
-    setCreateError(null);
+    setLoading(true);
+    setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/usuarios`, {
-        method: "POST",
-        credentials: "include",
+      const response = await fetch("/api/usuarios", {
+        method: "GET",
         headers: {
           Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+
+      const body = await parseResponse(response);
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(body, "No fue posible cargar los usuarios."),
+        );
+      }
+
+      setUsuarios(Array.isArray(body) ? body : []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No fue posible cargar los usuarios.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openCreate() {
+    setForm(INITIAL_FORM);
+    setFormError(null);
+    setIsCreateOpen(true);
+  }
+
+  function closeCreate() {
+    if (saving) return;
+
+    setIsCreateOpen(false);
+    setForm(INITIAL_FORM);
+    setFormError(null);
+  }
+
+  function openEdit(usuario: Usuario) {
+    setEditingUser(usuario);
+    setEditForm({
+      name: usuario.name,
+      email: usuario.email,
+      password: "",
+      role: usuario.role,
+      status: usuario.status,
+    });
+    setFormError(null);
+  }
+
+  function closeEdit() {
+    if (saving) return;
+
+    setEditingUser(null);
+    setFormError(null);
+  }
+
+  function validatePassword(password: string) {
+    if (!isValidPassword(password)) {
+      setFormError(
+        "La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.",
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!validatePassword(form.password)) {
+      return;
+    }
+
+    setSaving(true);
+    setFormError(null);
+
+    try {
+      const response = await fetch("/api/usuarios", {
+        method: "POST",
+        headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
-          name: cleanName,
-          email: cleanEmail,
-          password: newPassword,
-          role: newRole,
-          status: newStatus,
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          role: form.role,
+          status: form.status,
         }),
       });
 
+      const body = await parseResponse(response);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message
-            ? Array.isArray(errorData.message)
-              ? errorData.message.join(", ")
-              : errorData.message
-            : "No fue posible crear el usuario.",
+          getErrorMessage(body, "No fue posible crear el usuario."),
         );
       }
 
-      const created = (await response.json()) as Usuario;
-      setUsuarios((current) => [created, ...current]);
-      notifyToast("Usuario creado correctamente.");
-      closeCreateModal();
-    } catch (caughtError) {
-      setCreateError(
-        caughtError instanceof Error ? caughtError.message : "No fue posible crear el usuario.",
+      if (body && typeof body === "object") {
+        setUsuarios((current) => [...current, body as Usuario]);
+      } else {
+        await handleRetry();
+      }
+
+      closeCreate();
+    } catch (err) {
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : "No fue posible crear el usuario.",
       );
     } finally {
-      setIsCreating(false);
+      setSaving(false);
     }
   }
 
-  function openEditModal(user: Usuario) {
-    setUserBeingEdited(user);
-    setEditName(user.name);
-    setEditEmail(user.email);
-    setEditRole(user.role);
-    setEditStatus(user.status);
-    setEditPassword("");
-    setEditPasswordConfirmation("");
-    setEditError(null);
-  }
-
-  function closeEditModal() {
-    if (isUpdating) return;
-    setUserBeingEdited(null);
-    setEditError(null);
-  }
-
-  async function handleUpdate(event: React.FormEvent) {
+  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!userBeingEdited || isUpdating) return;
 
-    if (editPassword !== editPasswordConfirmation) {
-      setEditError("Las contraseñas no coinciden.");
+    if (!editingUser) {
       return;
     }
 
-    if (editPassword && passwordRequirements.some((requirement) => !requirement.matches(editPassword))) {
-      setEditError("La nueva contraseña todavía no cumple todos los requisitos.");
+    if (editForm.password && !validatePassword(editForm.password)) {
       return;
     }
 
-    setIsUpdating(true);
-    setEditError(null);
+    setSaving(true);
+    setFormError(null);
 
     try {
-      const payload: Record<string, string> = {
-        name: editName.trim(),
-        email: editEmail.trim().toLowerCase(),
-        role: editRole,
-        status: editStatus,
+      const payload: {
+        name: string;
+        email: string;
+        role: "ADMIN" | "MODERATOR";
+        status: "ACTIVE" | "INACTIVE";
+        password?: string;
+      } = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        role: editForm.role,
+        status: editForm.status,
       };
-      if (editPassword) payload.password = editPassword;
 
-      const response = await fetch(`${API_URL}/usuarios/${userBeingEdited.id}`, {
+      if (editForm.password) {
+        payload.password = editForm.password;
+      }
+
+      const response = await fetch(`/api/usuarios/${editingUser.id}`, {
         method: "PATCH",
-        credentials: "include",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
+      const body = await parseResponse(response);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message
-            ? Array.isArray(errorData.message)
-              ? errorData.message.join(", ")
-              : errorData.message
-            : "No fue posible actualizar el usuario.",
+          getErrorMessage(body, "No fue posible actualizar el usuario."),
         );
       }
 
-      const updated = (await response.json()) as Usuario;
-      setUsuarios((current) => current.map((user) => user.id === updated.id ? updated : user));
-      notifyToast("Usuario actualizado correctamente.");
-      setUserBeingEdited(null);
-    } catch (caughtError) {
-      setEditError(caughtError instanceof Error ? caughtError.message : "No fue posible actualizar el usuario.");
+      if (body && typeof body === "object") {
+        const updatedUser = body as Usuario;
+
+        setUsuarios((current) =>
+          current.map((usuario) =>
+            usuario.id === updatedUser.id ? updatedUser : usuario,
+          ),
+        );
+      } else {
+        await handleRetry();
+      }
+
+      closeEdit();
+    } catch (err) {
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : "No fue posible actualizar el usuario.",
+      );
     } finally {
-      setIsUpdating(false);
+      setSaving(false);
     }
   }
 
-  async function handleReactivate(user: Usuario) {
+  async function handleReactivate(usuario: Usuario) {
+    setSaving(true);
+    setError(null);
+
     try {
-      const response = await fetch(`${API_URL}/usuarios/${user.id}`, {
+      const response = await fetch(`/api/usuarios/${usuario.id}`, {
         method: "PATCH",
-        credentials: "include",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ACTIVE" }),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          status: "ACTIVE",
+        }),
       });
-      if (!response.ok) throw new Error("No fue posible activar el usuario.");
-      const updated = (await response.json()) as Usuario;
-      setUsuarios((current) => current.map((item) => item.id === updated.id ? updated : item));
-      notifyToast("Usuario activado correctamente.");
-    } catch {
-      setError("No fue posible activar el usuario. Intenta de nuevo.");
-    }
-  }
 
-  function handleDeactivate(user: Usuario) {
-    setUserToDeactivate(user);
+      const body = await parseResponse(response);
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(body, "No fue posible reactivar el usuario."),
+        );
+      }
+
+      if (body && typeof body === "object") {
+        const updatedUser = body as Usuario;
+
+        setUsuarios((current) =>
+          current.map((currentUser) =>
+            currentUser.id === updatedUser.id ? updatedUser : currentUser,
+          ),
+        );
+      } else {
+        await handleRetry();
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No fue posible reactivar el usuario.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function confirmDeactivate() {
-    if (!userToDeactivate || isDeactivating) return;
+    if (!deactivatingUser) {
+      return;
+    }
 
-    setIsDeactivating(true);
+    setSaving(true);
+    setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/usuarios/${userToDeactivate.id}/deactivate`, {
-        method: "PATCH",
-        credentials: "include",
-      });
+      const response = await fetch(
+        `/api/usuarios/${deactivatingUser.id}/deactivate`,
+        {
+          method: "PATCH",
+          headers: {
+            Accept: "application/json",
+          },
+        },
+      );
+
+      const body = await parseResponse(response);
 
       if (!response.ok) {
-        throw new Error("No fue posible desactivar el usuario.");
+        throw new Error(
+          getErrorMessage(body, "No fue posible desactivar el usuario."),
+        );
       }
 
-      setUsuarios((current) =>
-        current.map((u) =>
-          u.id === userToDeactivate.id ? { ...u, status: "INACTIVE" as const } : u,
-        ),
+      if (body && typeof body === "object") {
+        const updatedUser = body as Usuario;
+
+        setUsuarios((current) =>
+          current.map((usuario) =>
+            usuario.id === updatedUser.id ? updatedUser : usuario,
+          ),
+        );
+      } else {
+        await handleRetry();
+      }
+
+      setDeactivatingUser(null);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No fue posible desactivar el usuario.",
       );
-      notifyToast("Usuario desactivado correctamente.");
-    } catch {
-      setError("No fue posible desactivar el usuario. Intenta de nuevo.");
     } finally {
-      setIsDeactivating(false);
-      setUserToDeactivate(null);
+      setSaving(false);
     }
   }
 
+  const activeUsers = usuarios.filter(
+    (usuario) => usuario.status === "ACTIVE",
+  );
+
+  const inactiveUsers = usuarios.filter(
+    (usuario) => usuario.status === "INACTIVE",
+  );
+
   return (
-    <div className="space-y-8 pb-20">
-      <div className="rounded-xl border border-[#242424] bg-[#0D0D0D] p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6">
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#737373]">
-              Administración de cuentas
-            </p>
-            <p className="mt-1 text-xs text-[#A3A3A3]">
-              {usuarios.length} {usuarios.length === 1 ? "usuario registrado" : "usuarios registrados"}
+            <h1 className="text-xl font-semibold text-white">Usuarios</h1>
+            <p className="mt-1 text-sm text-white/50">
+              {activeUsers.length} activos · {inactiveUsers.length} inactivos
             </p>
           </div>
-          <Button variant="primary" onClick={() => openCreateModal()}>
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Nuevo usuario</span>
-          </Button>
+
+          <button
+            type="button"
+            onClick={openCreate}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={saving}
+          >
+            Crear usuario
+          </button>
         </div>
 
         {error && (
-          <p
-            className="cm-field__error mt-4"
-            role="alert"
-          >
-            {error}
-            <button type="button" onClick={() => void handleRetry()} disabled={isRetrying} className="ml-2 underline underline-offset-2 disabled:opacity-50">
-              {isRetrying ? "Reintentando..." : "Reintentar"}
-            </button>
-          </p>
-        )}
-      </div>
+          <div className="mt-6 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+            <p className="text-sm text-red-300">{error}</p>
 
-      {usuarios.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#242424] bg-[#0D0D0D] p-12 text-center">
-          <div className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-xl border border-[#242424] bg-[#111111] text-[#525252]">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18 9V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3m6 0h6m-6 0l2 2m-2-2l-2 2" />
-            </svg>
-          </div>
-          <p className="text-xs font-semibold text-[#D4D4D4]">Todavía no hay usuarios</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-[11px] leading-relaxed text-[#737373]">
-            Crea la primera cuenta para dar acceso al equipo de moderación.
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#242424] bg-[#0D0D0D]">
-          <table className="w-full min-w-[620px] text-left">
-            <thead>
-              <tr className="border-b border-[#242424]">
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-[#737373]">
-                  Nombre
-                </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-[#737373]">
-                  Email
-                </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-[#737373]">
-                  Rol
-                </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-[#737373]">
-                  Estado
-                </th>
-                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-[#737373]">
-                  Creado
-                </th>
-                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-[#737373]">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map((user) => (
-                <tr key={user.id} className="border-b border-[#1A1A1A] transition-colors last:border-0 hover:bg-[#111111]">
-                  <td className="px-4 py-3 text-sm font-semibold text-[#F5F5F5]">
-                    {user.name}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[#737373]">
-                    {user.email}
-                  </td>                  <td className="px-4 py-3">
-                    <ToneBadge tone={user.role === "ADMIN" ? "primary" : "success"} dot>
-                      {user.role === "ADMIN" ? "Administrador" : "Moderador"}
-                    </ToneBadge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <ToneBadge tone={user.status === "ACTIVE" ? "success" : "muted"} dot>
-                      {user.status === "ACTIVE" ? "Activo" : "Inactivo"}
-                    </ToneBadge>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-[#737373]">
-                    {new Date(user.createdAt).toLocaleDateString("es-CO")}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => openEditModal(user)}>
-                        Editar
-                      </Button>
-                      {user.status === "ACTIVE" ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeactivate(user)}
-                          disabled={user.email === "angelmp2097@gmail.com"}
-                          title={user.email === "angelmp2097@gmail.com" ? "No se puede desactivar al administrador principal" : "Desactivar usuario"}
-                        >
-                          Desactivar
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="sm" onClick={() => void handleReactivate(user)}>
-                          Activar
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {showCreateModal && (
-        <Modal isOpen onClose={closeCreateModal} labelledBy="create-user-title">
-          <header className="cm-modal__header">
-            <div>
-              <p className="cm-modal__eyebrow">Administración de cuentas</p>
-              <h2 id="create-user-title" className="cm-modal__title">
-                Crear nuevo usuario
-              </h2>
-            </div>
             <button
               type="button"
-              onClick={closeCreateModal}
-              disabled={isCreating}
-              aria-label="Cerrar"
-              className="cm-modal__close"
+              onClick={handleRetry}
+              disabled={loading}
+              className="mt-3 text-sm font-medium text-white underline underline-offset-4 disabled:opacity-50"
             >
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              {loading ? "Cargando..." : "Reintentar"}
             </button>
-          </header>
+          </div>
+        )}
 
-          <form onSubmit={(e) => void handleCreate(e)} className="mt-5 space-y-4">
-            <div className="cm-field">
-              <label htmlFor="new-user-name" className="cm-field__label">
-                Nombre
-              </label>
-              <input
-                id="new-user-name"
-                type="text"
-                required
-                maxLength={100}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                disabled={isCreating}
-                className="cm-input"
-                placeholder="Ej. Ana Gómez"
-                autoFocus
-              />
+        <div className="mt-6 overflow-hidden rounded-lg border border-white/10">
+          <table className="w-full">
+            <thead className="border-b border-white/10 bg-white/[0.02]">
+              <tr className="text-left text-xs uppercase tracking-wide text-white/40">
+                <th className="px-4 py-3">Nombre</th>
+                <th className="px-4 py-3">Correo</th>
+                <th className="px-4 py-3">Rol</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-white/10">
+              {usuarios.map((usuario) => {
+                const isMainAdmin =
+                  usuario.email.toLowerCase() === mainAdminEmail;
+
+                return (
+                  <tr key={usuario.id} className="text-sm text-white/80">
+                    <td className="px-4 py-4">{usuario.name}</td>
+                    <td className="px-4 py-4">{usuario.email}</td>
+                    <td className="px-4 py-4">{usuario.role}</td>
+                    <td className="px-4 py-4">
+                      {usuario.status === "ACTIVE" ? "Activo" : "Inactivo"}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(usuario)}
+                          className="text-sm text-white/70 transition hover:text-white"
+                        >
+                          Editar
+                        </button>
+
+                        {!isMainAdmin &&
+                          (usuario.status === "ACTIVE" ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeactivatingUser(usuario)}
+                              disabled={saving}
+                              className="text-sm text-red-300 transition hover:text-red-200 disabled:opacity-50"
+                            >
+                              Desactivar
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleReactivate(usuario)}
+                              disabled={saving}
+                              className="text-sm text-emerald-300 transition hover:text-emerald-200 disabled:opacity-50"
+                            >
+                              Reactivar
+                            </button>
+                          ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {usuarios.length === 0 && !loading && (
+            <div className="p-8 text-center text-sm text-white/40">
+              No hay usuarios registrados.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#07191e] p-6 shadow-2xl">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-white">
+                Crear usuario
+              </h2>
+
+              <p className="mt-1 text-sm text-white/50">
+                Registra un nuevo usuario para acceder a Clip Manager.
+              </p>
             </div>
 
-            <div className="cm-field">
-              <label htmlFor="new-user-email" className="cm-field__label">
-                Email
-              </label>
+            <form onSubmit={handleCreate} className="space-y-4">
               <input
-                id="new-user-email"
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Nombre"
+                required
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+              />
+
+              <input
+                value={form.email}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+                placeholder="Correo electrónico"
                 type="email"
                 required
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                disabled={isCreating}
-                className="cm-input"
-                placeholder="usuario@ejemplo.com"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
               />
-            </div>
 
-            <div className="cm-field">
-              <label htmlFor="new-user-password" className="cm-field__label">
-                Contraseña
-              </label>
-              <PasswordInput
-                id="new-user-password"
+              <input
+                value={form.password}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
+                }
+                placeholder="Contraseña"
+                type="password"
                 required
-                minLength={8}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                disabled={isCreating}
-                placeholder="Mínimo 8 caracteres, mayúscula, minúscula, número y especial"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
               />
-              <ul className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1">
-                {passwordRequirements.map((requirement) => {
-                  const valid = requirement.matches(newPassword);
-                  return (
-                    <li key={requirement.label} className={`text-[10px] ${valid ? "text-[#22C55E]" : "text-[#737373]"}`}>
-                      {valid ? "✓" : "○"} {requirement.label}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
 
-            <div className="cm-field">
-              <label htmlFor="new-user-password-confirm" className="cm-field__label">
-                Confirmar contraseña
-              </label>
-              <PasswordInput
-                id="new-user-password-confirm"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isCreating}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="cm-field">
-                <span className="cm-field__label">Rol</span>
-                <DropdownSelect
-                  label="Rol del nuevo usuario"
-                  value={newRole}
-                  onChange={(value) => setNewRole(value as "ADMIN" | "MODERATOR")}
-                  disabled={isCreating}
-                  options={[
-                    { value: "MODERATOR", label: "Moderador" },
-                    { value: "ADMIN", label: "Administrador" },
-                  ]}
-                  compact
-                />
-              </div>
-              <div className="cm-field">
-                <span className="cm-field__label">Estado</span>
-                <DropdownSelect
-                  label="Estado del nuevo usuario"
-                  value={newStatus}
-                  onChange={(value) => setNewStatus(value as "ACTIVE" | "INACTIVE")}
-                  disabled={isCreating}
-                  options={[
-                    { value: "ACTIVE", label: "Activo" },
-                    { value: "INACTIVE", label: "Inactivo" },
-                  ]}
-                  compact
-                />
-              </div>
-            </div>
-
-            {createError && (
-              <p role="alert" className="cm-field__error">
-                {createError}
-              </p>
-            )}
-
-            <footer className="cm-modal__footer">
-              <Button variant="ghost" onClick={closeCreateModal} disabled={isCreating}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={isCreating}
-                loadingLabel="Creando..."
-                disabled={!newName.trim() || !newEmail.trim() || !newPassword.trim()}
+              <select
+                value={form.role}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    role: event.target.value as UserFormData["role"],
+                  }))
+                }
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
               >
-                Crear usuario
-              </Button>
-            </footer>
-          </form>
-        </Modal>
+                <option value="MODERATOR">Moderador</option>
+                <option value="ADMIN">Administrador</option>
+              </select>
+
+              <select
+                value={form.status}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    status: event.target.value as UserFormData["status"],
+                  }))
+                }
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="ACTIVE">Activo</option>
+                <option value="INACTIVE">Inactivo</option>
+              </select>
+
+              {formError && (
+                <p className="text-sm text-red-300">{formError}</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCreate}
+                  disabled={saving}
+                  className="rounded-lg px-4 py-2 text-sm text-white/70 hover:text-white disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Creando..." : "Crear usuario"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      {userBeingEdited && (
-        <Modal isOpen onClose={closeEditModal} labelledBy="edit-user-title">
-          <form onSubmit={(event) => void handleUpdate(event)}>
-            <header className="cm-modal__header">
-              <div className="min-w-0">
-                <p className="cm-modal__eyebrow">Administración de cuentas</p>
-                <h2 id="edit-user-title" className="cm-modal__title">
-                  Editar usuario
-                </h2>
-              </div>
-              <button type="button" onClick={closeEditModal} disabled={isUpdating} aria-label="Cerrar" className="cm-modal__close">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </header>
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#07191e] p-6 shadow-2xl">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-white">
+                Editar usuario
+              </h2>
 
-            <div className="mt-5 space-y-4">
-              <div className="cm-field">
-                <label htmlFor="edit-user-name" className="cm-field__label">Nombre</label>
-                <input id="edit-user-name" required maxLength={100} value={editName} onChange={(event) => setEditName(event.target.value)} disabled={isUpdating} className="cm-input" />
-              </div>
-              <div className="cm-field">
-                <label htmlFor="edit-user-email" className="cm-field__label">Correo</label>
-                <input id="edit-user-email" required type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} disabled={isUpdating} className="cm-input" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="cm-field">
-                  <span className="cm-field__label">Rol</span>
-                  <DropdownSelect
-                    label="Rol"
-                    value={editRole}
-                    onChange={(value) => setEditRole(value as "ADMIN" | "MODERATOR")}
-                    disabled={isUpdating}
-                    options={[{ value: "ADMIN", label: "Administrador" }, { value: "MODERATOR", label: "Moderador" }]}
-                    compact
-                  />
-                </div>
-                <div className="cm-field">
-                  <span className="cm-field__label">Estado</span>
-                  <DropdownSelect
-                    label="Estado"
-                    value={editStatus}
-                    onChange={(value) => setEditStatus(value as "ACTIVE" | "INACTIVE")}
-                    disabled={isUpdating || userBeingEdited.email === "angelmp2097@gmail.com"}
-                    options={[{ value: "ACTIVE", label: "Activo" }, { value: "INACTIVE", label: "Inactivo" }]}
-                    compact
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-[#242424] pt-4">
-                <p className="text-xs font-medium text-[#F5F5F5]">Cambiar contraseña</p>
-                <p className="mt-1 text-[11px] text-[#737373]">Déjala vacía para conservar la contraseña actual.</p>
-                <div className="mt-3 space-y-2">
-                  <PasswordInput
-                    aria-label="Nueva contraseña"
-                    value={editPassword}
-                    onChange={(event) => setEditPassword(event.target.value)}
-                    disabled={isUpdating}
-                    placeholder="Nueva contraseña"
-                  />
-                  <PasswordInput
-                    aria-label="Confirmar nueva contraseña"
-                    value={editPasswordConfirmation}
-                    onChange={(event) => setEditPasswordConfirmation(event.target.value)}
-                    disabled={isUpdating}
-                    placeholder="Confirmar nueva contraseña"
-                  />
-                </div>
-                {editPassword && (
-                  <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
-                    {passwordRequirements.map((requirement) => (
-                      <li key={requirement.label} className={`text-[10px] ${requirement.matches(editPassword) ? "text-[#22C55E]" : "text-[#737373]"}`}>
-                        {requirement.matches(editPassword) ? "✓" : "○"} {requirement.label}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {editError && <p role="alert" className="cm-field__error">{editError}</p>}
+              <p className="mt-1 text-sm text-white/50">
+                Actualiza los datos del usuario.
+              </p>
             </div>
 
-            <footer className="cm-modal__footer mt-5">
-              <Button variant="ghost" onClick={closeEditModal} disabled={isUpdating}>
-                Cancelar
-              </Button>
-              <Button type="submit" variant="primary" isLoading={isUpdating} loadingLabel="Guardando...">
-                Guardar cambios
-              </Button>
-            </footer>
-          </form>
-        </Modal>
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <input
+                value={editForm.name}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Nombre"
+                required
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+              />
+
+              <input
+                value={editForm.email}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+                placeholder="Correo electrónico"
+                type="email"
+                required
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+              />
+
+              <input
+                value={editForm.password}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
+                }
+                placeholder="Nueva contraseña (opcional)"
+                type="password"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+              />
+
+              <select
+                value={editForm.role}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    role: event.target.value as UserEditData["role"],
+                  }))
+                }
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="MODERATOR">Moderador</option>
+                <option value="ADMIN">Administrador</option>
+              </select>
+
+              <select
+                value={editForm.status}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    status: event.target.value as UserEditData["status"],
+                  }))
+                }
+                disabled={
+                  editingUser.email.toLowerCase() === mainAdminEmail
+                }
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="ACTIVE">Activo</option>
+                <option value="INACTIVE">Inactivo</option>
+              </select>
+
+              {formError && (
+                <p className="text-sm text-red-300">{formError}</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={saving}
+                  className="rounded-lg px-4 py-2 text-sm text-white/70 hover:text-white disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      <ConfirmationModal
-        isOpen={userToDeactivate !== null}
-        onClose={() => setUserToDeactivate(null)}
-        onConfirm={() => confirmDeactivate()}
-        title="Desactivar usuario"
-        message={`¿Estás seguro de desactivar a "${userToDeactivate?.name}" (${userToDeactivate?.email})? El usuario no podrá iniciar sesión hasta que sea reactivado.`}
-        confirmLabel="Desactivar"
-        isConfirming={isDeactivating}
-        destructive
-      />
+      {deactivatingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#07191e] p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-white">
+              Desactivar usuario
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-white/60">
+              ¿Seguro que deseas desactivar a{" "}
+              <span className="text-white">
+                {deactivatingUser.name}
+              </span>
+              ? El usuario no podrá iniciar sesión mientras permanezca
+              inactivo.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeactivatingUser(null)}
+                disabled={saving}
+                className="rounded-lg px-4 py-2 text-sm text-white/70 hover:text-white disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeactivate}
+                disabled={saving}
+                className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? "Desactivando..." : "Desactivar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
