@@ -81,7 +81,7 @@ export function ClipDetailPanel({
     setStatusError(null);
 
     try {
-      const response = await fetch(`${API_URL}/clips/${clip.id}/status`, {
+      const response = await fetch(`/api/clips/${clip.id}/status`, {
         method: "PATCH",
         credentials: "include",
         headers: {
@@ -141,7 +141,7 @@ export function ClipDetailPanel({
     setEditError(null);
 
     try {
-      const response = await fetch(`${API_URL}/clips/${clip.id}`, {
+      const response = await fetch(`/api/clips/${clip.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: {
@@ -162,7 +162,7 @@ export function ClipDetailPanel({
 
       const updatedClip = (await response.json()) as Clip;
       setClip(updatedClip);
-      const suggestionResponse = await fetch(`${API_URL}/clips/${clip.id}/suggestions`, {
+      const suggestionResponse = await fetch(`/api/clips/${clip.id}/suggestions`, {
         credentials: "include",
         cache: "no-store",
       });
@@ -182,7 +182,7 @@ export function ClipDetailPanel({
     setIsDeletingClip(true);
 
     try {
-      const response = await fetch(`${API_URL}/clips/${clip.id}`, {
+      const response = await fetch(`/api/clips/${clip.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -212,7 +212,7 @@ export function ClipDetailPanel({
     setTagError(null);
 
     try {
-      const response = await fetch(`${API_URL}/clips/${clip.id}/tags/${tagId}`, {
+      const response = await fetch(`/api/clips/${clip.id}/tags/${tagId}`, {
         method: "POST",
         credentials: "include",
         headers: { Accept: "application/json" },
@@ -248,7 +248,7 @@ export function ClipDetailPanel({
     setTagError(null);
 
     try {
-      const response = await fetch(`${API_URL}/tags`, {
+      const response = await fetch(`/api/tags`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -277,7 +277,7 @@ export function ClipDetailPanel({
 
   const handleRemoveTag = async (tagId: string) => {
     try {
-      const response = await fetch(`${API_URL}/clips/${clip.id}/tags/${tagId}`, {
+      const response = await fetch(`/api/clips/${clip.id}/tags/${tagId}`, {
         method: "DELETE",
         credentials: "include",
         headers: { Accept: "application/json" },

@@ -26,7 +26,7 @@ export function TagsManager({
   async function handleRetry() {
     setIsRetrying(true);
     try {
-      const response = await fetch(`${API_URL}/tags`, { credentials: "include", cache: "no-store" });
+      const response = await fetch(`/api/tags`, { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error();
       setTags((await response.json()) as Tag[]);
       setError(null);
@@ -50,7 +50,7 @@ export function TagsManager({
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/tags`, {
+      const response = await fetch(`/api/tags`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -91,7 +91,7 @@ export function TagsManager({
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/tags/${tagToDelete.id}`, {
+      const response = await fetch(`/api/tags/${tagToDelete.id}`, {
         method: "DELETE",
         credentials: "include",
         headers: { Accept: "application/json" },

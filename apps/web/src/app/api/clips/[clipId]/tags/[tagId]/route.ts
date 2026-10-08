@@ -28,3 +28,24 @@ export async function POST(
     },
   });
 }
+
+export async function DELETE(
+  _request: Request,
+  context: RouteContext,
+) {
+  const { clipId, tagId } = await context.params;
+
+  const response = await apiFetch(`/clips/${clipId}/tags/${tagId}`, {
+    method: "DELETE",
+  });
+
+  const responseBody = await response.text();
+
+  return new NextResponse(responseBody, {
+    status: response.status,
+    headers: {
+      "Content-Type":
+        response.headers.get("Content-Type") ?? "application/json",
+    },
+  });
+}

@@ -34,7 +34,7 @@ export default function StreamsList({
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/streams`, {
+      const response = await fetch(`/api/streams`, {
         method: "GET",
         credentials: "include",
         headers: {

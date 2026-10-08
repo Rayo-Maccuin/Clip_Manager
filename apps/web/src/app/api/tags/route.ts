@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetch } from "@/lib/server-api";
 
 export async function GET() {
-  const response = await apiFetch("/streams", {
+  const response = await apiFetch("/tags", {
     method: "GET",
   });
 
@@ -20,7 +20,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = await request.text();
 
-  const response = await apiFetch("/streams", {
+  const response = await apiFetch("/tags", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

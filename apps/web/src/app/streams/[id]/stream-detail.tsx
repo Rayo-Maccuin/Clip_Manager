@@ -170,7 +170,7 @@ export default function StreamDetail({
     setIsSavingVodUrl(true);
     setVodUrlError(null);
     try {
-      const response = await fetch(`${API_URL}/streams/${stream.id}/vod`, {
+      const response = await fetch(`/api/streams/${stream.id}/vod`, {
         method: "PATCH",
         credentials: "include",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -232,7 +232,7 @@ export default function StreamDetail({
     setDeleteError(null);
 
     try {
-      const response = await fetch(`${API_URL}/streams/${stream.id}`, {
+      const response = await fetch(`/api/streams/${stream.id}`, {
         method: "DELETE",
         credentials: "include",
       });

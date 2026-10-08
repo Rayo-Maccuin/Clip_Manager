@@ -36,7 +36,7 @@ export function ClipsLibrary({
   async function handleRetry() {
     setIsRetrying(true);
     try {
-      const response = await fetch(`${API_URL}/clips`, { credentials: "include", cache: "no-store" });
+      const response = await fetch(`/api/clips`, { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error();
       setClips((await response.json()) as Clip[]);
       setError(null);
