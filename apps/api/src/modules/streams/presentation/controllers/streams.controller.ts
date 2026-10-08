@@ -35,7 +35,7 @@ export class StreamsController {
   ) {}
 
   @Post()
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MODERATOR')
   async create(@Body() dto: CreateStreamDto) {
     const stream = await this.createStreamUseCase.execute({
       title: dto.title,
@@ -125,7 +125,10 @@ export class StreamsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateStreamVodDto,
   ) {
-    const stream = await this.updateStreamVodUseCase.execute({ id, vodUrl: dto.vodUrl });
+    const stream = await this.updateStreamVodUseCase.execute({
+      id,
+      vodUrl: dto.vodUrl,
+    });
 
     if (!stream) {
       throw new NotFoundException('Stream not found');
@@ -141,4 +144,3 @@ export class StreamsController {
     };
   }
 }
-

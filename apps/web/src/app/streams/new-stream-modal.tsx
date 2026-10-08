@@ -7,8 +7,6 @@ import { Modal } from "@/components/ui/modal";
 import { useAuthUser } from "@/lib/auth-context";
 import { notifyToast } from "@/lib/toast";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002";
-
 function defaultStartValue() {
   const date = new Date();
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -61,6 +59,7 @@ export default function NewStreamModal({
     setVodUrl("");
     setError(null);
     setSuccess(false);
+
     if (isControlled) {
       // let caller control
     } else {
@@ -70,6 +69,7 @@ export default function NewStreamModal({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     if (isSubmitting) return;
 
     const cleanTitle = title.trim();
@@ -92,7 +92,14 @@ export default function NewStreamModal({
 
     try {
       const parsedUrl = new URL(cleanUrl);
-      if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") throw new Error();
+
+      if (
+        parsedUrl.protocol !== "https:" &&
+        parsedUrl.protocol !== "http:"
+      ) {
+        throw new Error();
+      }
+
       cleanUrl = parsedUrl.toString();
     } catch {
       setError("Introduce una URL válida del stream o VOD.");
@@ -102,7 +109,11 @@ export default function NewStreamModal({
     setIsSubmitting(true);
     setError(null);
 
-    const payload: { title: string; vodUrl: string; startedAt?: string } = {
+    const payload: {
+      title: string;
+      vodUrl: string;
+      startedAt?: string;
+    } = {
       title: cleanTitle,
       vodUrl: cleanUrl,
     };
@@ -114,9 +125,8 @@ export default function NewStreamModal({
     }
 
     try {
-      const response = await fetch(`${API_URL}/streams`, {
+      const response = await fetch("/api/streams", {
         method: "POST",
-        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -126,6 +136,7 @@ export default function NewStreamModal({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+
         setError(
           errorData.message
             ? Array.isArray(errorData.message)
@@ -133,11 +144,13 @@ export default function NewStreamModal({
               : errorData.message
             : "No fue posible crear el stream. Revisa los datos.",
         );
+
         setIsSubmitting(false);
         return;
       }
 
       const stream = (await response.json()) as { id: string };
+
       setSuccess(true);
       notifyToast("Stream creado correctamente.");
 
@@ -153,7 +166,12 @@ export default function NewStreamModal({
     }
   }
 
-  if (user?.role !== "ADMIN") return null;
+  if (
+    !user ||
+    (user.role !== "ADMIN" && user.role !== "MODERATOR")
+  ) {
+    return null;
+  }
 
   return (
     <>
@@ -161,39 +179,87 @@ export default function NewStreamModal({
         <button
           type="button"
           onClick={handleOpen}
-          className={triggerClassName ?? buttonClass({ variant: "primary" })}
+          className={
+            triggerClassName ?? buttonClass({ variant: "primary" })
+          }
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4v16m8-8H4"
+            />
           </svg>
+
           <span>{triggerLabel}</span>
         </button>
       )}
 
       {open && (
-        <Modal isOpen={open} onClose={handleClose} labelledBy="new-stream-modal-title">
+        <Modal
+          isOpen={open}
+          onClose={handleClose}
+          labelledBy="new-stream-modal-title"
+        >
           <header className="cm-modal__header">
             <div className="min-w-0">
               <p className="cm-modal__eyebrow">Nuevo stream</p>
-              <h2 id="new-stream-modal-title" className="cm-modal__title">
+
+              <h2
+                id="new-stream-modal-title"
+                className="cm-modal__title"
+              >
                 Registrar transmisión
               </h2>
+
               <p className="mt-1 text-[11px] text-[#737373]">
-                Se sincronizará en tiempo real con todo el equipo de moderación.
+                Se sincronizará en tiempo real con todo el equipo de
+                moderación.
               </p>
             </div>
-            <button type="button" onClick={handleClose} disabled={isSubmitting} aria-label="Cerrar" className="cm-modal__close">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={isSubmitting}
+              aria-label="Cerrar"
+              className="cm-modal__close"
+            >
+              <svg
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </header>
 
-          <form onSubmit={(e) => void handleSubmit(e)} className="mt-5 space-y-4">
+          <form
+            onSubmit={(e) => void handleSubmit(e)}
+            className="mt-5 space-y-4"
+          >
             <div className="cm-field">
-              <label htmlFor="stream-title" className="cm-field__label">
+              <label
+                htmlFor="stream-title"
+                className="cm-field__label"
+              >
                 Título del stream
               </label>
+
               <input
                 id="stream-title"
                 type="text"
@@ -209,9 +275,13 @@ export default function NewStreamModal({
             </div>
 
             <div className="cm-field">
-              <label htmlFor="stream-url" className="cm-field__label">
+              <label
+                htmlFor="stream-url"
+                className="cm-field__label"
+              >
                 URL del Stream o VOD
               </label>
+
               <input
                 id="stream-url"
                 type="text"
@@ -223,16 +293,25 @@ export default function NewStreamModal({
                 placeholder="https://kick.com/canal/videos/... o https://www.twitch.tv/streamer"
                 className="cm-input"
               />
-              <p className="cm-field__hint" id="stream-url-hint">
-                Puedes associar la URL del VOD final más tarde; los clips siempre siguen la URL del stream.
+
+              <p
+                className="cm-field__hint"
+                id="stream-url-hint"
+              >
+                Puedes associar la URL del VOD final más tarde; los
+                clips siempre siguen la URL del stream.
               </p>
             </div>
 
             <div className="space-y-3 rounded-lg border border-[#242424] bg-[#080808] p-3.5">
               <div className="flex items-center justify-between gap-3">
-                <label htmlFor="start-now-checkbox" className="cursor-pointer text-xs font-medium text-[#F5F5F5]">
+                <label
+                  htmlFor="start-now-checkbox"
+                  className="cursor-pointer text-xs font-medium text-[#F5F5F5]"
+                >
                   Iniciar contador ahora mismo
                 </label>
+
                 <input
                   id="start-now-checkbox"
                   type="checkbox"
@@ -245,9 +324,13 @@ export default function NewStreamModal({
 
               {!startNow && (
                 <div className="cm-field">
-                  <label htmlFor="stream-start" className="cm-field__label">
+                  <label
+                    htmlFor="stream-start"
+                    className="cm-field__label"
+                  >
                     Fecha y hora de inicio real
                   </label>
+
                   <input
                     id="stream-start"
                     type="datetime-local"
@@ -267,18 +350,40 @@ export default function NewStreamModal({
             )}
 
             {success && (
-              <p role="status" className="flex items-center gap-2 rounded-lg border border-[#22C55E]/30 bg-[#22C55E]/10 p-3 text-xs text-[#22C55E]">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <p
+                role="status"
+                className="flex items-center gap-2 rounded-lg border border-[#22C55E]/30 bg-[#22C55E]/10 p-3 text-xs text-[#22C55E]"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
-                <span>Stream creado. Abriendo sala de control...</span>
+
+                <span>
+                  Stream creado. Abriendo sala de control...
+                </span>
               </p>
             )}
 
             <footer className="cm-modal__footer">
-              <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
+              <Button
+                variant="ghost"
+                onClick={handleClose}
+                disabled={isSubmitting}
+              >
                 Cancelar
               </Button>
+
               <Button
                 type="submit"
                 variant="primary"
