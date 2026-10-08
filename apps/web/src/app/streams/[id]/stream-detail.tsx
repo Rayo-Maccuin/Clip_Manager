@@ -196,7 +196,7 @@ export default function StreamDetail({
     setEndError(null);
 
     try {
-      const response = await fetch(`${API_URL}/streams/${stream.id}/end`, {
+      const response = await fetch(`/api/streams/${stream.id}/end`, {
         method: "PATCH",
         credentials: "include",
         headers: {
