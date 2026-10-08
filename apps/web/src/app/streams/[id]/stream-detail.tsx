@@ -103,7 +103,7 @@ export default function StreamDetail({
     setTimeout(() => setFlash(false), 300);
 
     try {
-      const response = await fetch(`${API_URL}/streams/${stream.id}/clips`, {
+      const response = await fetch(`/api/streams/${stream.id}/clips`, {
         method: "POST",
         credentials: "include",
         headers: { Accept: "application/json", "Content-Type": "application/json" },

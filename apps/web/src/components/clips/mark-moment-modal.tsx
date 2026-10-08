@@ -7,7 +7,7 @@ import { notifyToast } from "@/lib/toast";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002";
+
 const DURATION_PRESETS = [15, 30, 45, 60, 90];
 
 type RangeMode = "quick" | "custom";
@@ -136,7 +136,7 @@ export function MarkMomentModal({
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/streams/${streamId}/clips`, {
+      const response = await fetch(`/api/streams/${streamId}/clips`, {
         method: "POST",
         credentials: "include",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -155,7 +155,7 @@ export function MarkMomentModal({
       const createdClip = (await response.json()) as Clip;
       const tagResults = await Promise.allSettled(
         selectedTagIds.map((tagId) =>
-          fetch(`${API_URL}/clips/${createdClip.id}/tags/${tagId}`, {
+          fetch(`/api/clips/${createdClip.id}/tags/${tagId}`, {
             method: "POST",
             credentials: "include",
           }),
